@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import { ref } from 'vue'
 import TextComponent from '../Message/Text.vue'
 
 const props = defineProps<{
