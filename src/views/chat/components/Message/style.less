@@ -57,6 +57,59 @@
 		}
 	}
 
+	// KaTeX 公式样式优化
+	.katex-display {
+		overflow-x: auto;
+		overflow-y: hidden;
+		margin: 1em 0;
+		padding: 0.5em 0;
+	}
+
+	.katex {
+		font-size: 1.1em;
+		text-rendering: auto;
+	}
+
+	.katexmath-block {
+		overflow-x: auto;
+		margin: 1em 0;
+		padding: 1em;
+		background-color: rgba(245, 245, 245, 0.6);
+		border-radius: 5px;
+	}
+
+	// 内联公式容器
+	.katex-inline {
+		display: inline-block;
+		font-size: 1em;
+	}
+
+	// 为大型公式提供水平滚动
+	.katex-html {
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+	
+	// 化学公式特定样式
+	.mhchem {
+		color: inherit !important;  // 确保化学公式颜色正常
+	}
+	
+	// 修复化学公式渲染问题
+	.mord.mathrm {
+		font-family: KaTeX_Main !important;
+	}
+	
+	// 确保化学箭头正确显示
+	.mrel {
+		color: inherit !important;
+	}
+	
+	// 增强mhchem扩展渲染
+	.mhchem .mord {
+		color: inherit !important;
+	}
+
 
 	&.markdown-body-generate>dd:last-child:after,
 	&.markdown-body-generate>dl:last-child:after,
@@ -91,6 +144,15 @@
 html.dark {
 
 	.markdown-body {
+		// 暗色模式下的KaTeX公式样式
+		.katexmath-block {
+			background-color: rgba(40, 44, 52, 0.6);
+		}
+		
+		// 暗色模式下化学公式样式
+		.mhchem, .mord, .mrel {
+			color: #d1d5db !important;
+		}
 
 		&.markdown-body-generate>dd:last-child:after,
 		&.markdown-body-generate>dl:last-child:after,
@@ -131,5 +193,11 @@ html.dark {
 		code {
 			padding: 24px 16px 16px 16px;
 		}
+	}
+
+	// 移动设备上适配公式显示
+	.markdown-body .katex-display {
+		padding: 0.2em;
+		max-width: 100%;
 	}
 }
