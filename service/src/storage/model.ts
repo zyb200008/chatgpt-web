@@ -98,15 +98,13 @@ export class ChatRoom {
 export class ChatOptions {
   parentMessageId?: string
   messageId?: string
-  conversationId?: string
   prompt_tokens?: number
   completion_tokens?: number
   total_tokens?: number
   estimated?: boolean
-  constructor(parentMessageId?: string, messageId?: string, conversationId?: string) {
+  constructor(parentMessageId?: string, messageId?: string) {
     this.parentMessageId = parentMessageId
     this.messageId = messageId
-    this.conversationId = conversationId
   }
 }
 
@@ -123,6 +121,7 @@ export class ChatInfo {
   dateTime: number
   prompt: string
   images?: string[]
+  reasoning?: string
   response?: string
   status: Status = Status.Normal
   options: ChatOptions
@@ -287,4 +286,4 @@ export class UserPrompt {
   }
 }
 
-export type APIMODEL = 'ChatGPTAPI' | 'ChatGPTUnofficialProxyAPI'
+export type APIMODEL = 'ChatGPTAPI'

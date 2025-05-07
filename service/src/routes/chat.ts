@@ -1,14 +1,13 @@
+import * as console from 'node:console'
 import { ObjectId } from 'mongodb'
-import type { TiktokenModel } from 'gpt-token'
-import { textTokens } from 'gpt-token'
 import Router from 'express'
-import type { ChatMessage } from 'chatgpt'
+import type { ResponseChunk } from '../chatgpt/types'
 import { limiter } from '../middleware/limiter'
 import { abortChatProcess, chatReplyProcess, containsSensitiveWords } from '../chatgpt'
 import { auth } from '../middleware/auth'
 import { getCacheConfig } from '../storage/config'
-import type { ChatInfo, ChatOptions, UserInfo } from '../storage/model'
-import { Status, UsageResponse, UserRole } from '../storage/model'
+import type { ChatInfo, ChatOptions, UsageResponse, UserInfo } from '../storage/model'
+import { Status, UserRole } from '../storage/model'
 import {
   clearChat,
   deleteAllChatRooms,
@@ -84,6 +83,7 @@ router.get('/chat-history', auth, async (req, res) => {
         result.push({
           uuid: c.uuid,
           dateTime: new Date(c.dateTime).toLocaleString(),
+          reasoning: c.reasoning,
           text: c.response,
           inversion: false,
           error: false,
@@ -91,14 +91,12 @@ router.get('/chat-history', auth, async (req, res) => {
           responseCount: (c.previousResponse?.length ?? 0) + 1,
           conversationOptions: {
             parentMessageId: c.options.messageId,
-            conversationId: c.options.conversationId,
           },
           requestOptions: {
             prompt: c.prompt,
             parentMessageId: c.options.parentMessageId,
             options: {
               parentMessageId: c.options.messageId,
-              conversationId: c.options.conversationId,
             },
           },
           usage,
@@ -146,6 +144,7 @@ router.get('/chat-response-history', auth, async (req, res) => {
       data: {
         uuid: chat.uuid,
         dateTime: new Date(chat.dateTime).toLocaleString(),
+        reasoning: chat.reasoning,
         text: response.response,
         inversion: false,
         error: false,
@@ -153,14 +152,12 @@ router.get('/chat-response-history', auth, async (req, res) => {
         responseCount: (chat.previousResponse?.length ?? 0) + 1,
         conversationOptions: {
           parentMessageId: response.options.messageId,
-          conversationId: response.options.conversationId,
         },
         requestOptions: {
           prompt: chat.prompt,
           parentMessageId: response.options.parentMessageId,
           options: {
             parentMessageId: response.options.messageId,
-            conversationId: response.options.conversationId,
           },
         },
         usage,
@@ -263,25 +260,11 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
     result = await chatReplyProcess({
       message: prompt,
       uploadFileKeys,
-      lastContext: options,
-      process: (chat: ChatMessage) => {
-        lastResponse = chat
-        const chuck = {
-          id: chat.id,
-          conversationId: chat.conversationId,
-          text: chat.text,
-          detail: {
-            choices: [
-              {
-                finish_reason: undefined,
-              },
-            ],
-          },
-        }
-        if (chat.detail && chat.detail.choices.length > 0)
-          chuck.detail.choices[0].finish_reason = chat.detail.choices[0].finish_reason
+      parentMessageId: options?.parentMessageId,
+      process: (chunk: ResponseChunk) => {
+        lastResponse = chunk
 
-        res.write(firstChunk ? JSON.stringify(chuck) : `\n${JSON.stringify(chuck)}`)
+        res.write(firstChunk ? JSON.stringify(chunk) : `\n${JSON.stringify(chunk)}`)
         firstChunk = false
       },
       systemMessage,
@@ -289,20 +272,9 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       top_p,
       user,
       messageId: message._id.toString(),
-      tryCount: 0,
       room,
     })
     // return the whole response including usage
-    if (!result.data.detail?.usage) {
-      if (!result.data.detail)
-        result.data.detail = {}
-      result.data.detail.usage = new UsageResponse()
-      // if no usage data, calculate using Tiktoken library
-      result.data.detail.usage.prompt_tokens = textTokens(prompt, model as TiktokenModel)
-      result.data.detail.usage.completion_tokens = textTokens(result.data.text, model as TiktokenModel)
-      result.data.detail.usage.total_tokens = result.data.detail.usage.prompt_tokens + result.data.detail.usage.completion_tokens
-      result.data.detail.usage.estimated = true
-    }
     res.write(`\n${JSON.stringify(result.data)}`)
   }
   catch (error) {
@@ -325,18 +297,18 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
         const previousResponse = message.previousResponse || []
         previousResponse.push({ response: message.response, options: message.options })
         await updateChat(message._id as unknown as string,
+          result.data.reasoning,
           result.data.text,
           result.data.id,
-          result.data.conversationId,
           model,
           result.data.detail?.usage as UsageResponse,
           previousResponse as [])
       }
       else {
         await updateChat(message._id as unknown as string,
+          result.data.reasoning,
           result.data.text,
           result.data.id,
-          result.data.conversationId,
           model,
           result.data.detail?.usage as UsageResponse)
       }
