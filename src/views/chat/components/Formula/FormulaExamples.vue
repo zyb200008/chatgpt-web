@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import TextComponent from '../Message/Text.vue'
+import { useChatStore } from '@/store'
 
 // 定义类型接口
 interface FormulaOption {
@@ -15,6 +16,7 @@ interface FormulaDatabase {
 
 // 路由
 const router = useRouter()
+const chatStore = useChatStore()
 
 // 状态管理
 const userFormula = ref('')
@@ -137,7 +139,20 @@ async function copyFormula() {
 
 // 返回聊天界面
 function goBack() {
-  router.push('/chat')
+  // 确保在返回之前重置controller和任何正在进行的请求
+  if (window.controller && window.controller instanceof AbortController) {
+    try {
+      window.controller.abort()
+    }
+    catch (error) {
+      console.error('Error aborting controller:', error)
+    }
+  }
+
+  // 创建新的控制器用于后续操作
+  window.controller = new AbortController()
+
+  router.push({ name: 'Chat', params: { uuid: chatStore.active } })
 }
 </script>
 
