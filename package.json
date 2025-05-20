@@ -1,7 +1,7 @@
 {
   "name": "chatgpt-web",
   "type": "module",
-  "version": "2.13.3",
+  "version": "2.8.1",
   "private": false,
   "description": "ChatGPT Web",
   "author": "ChatGPT Web Contributors <dev@chatgpt-web.dev>",

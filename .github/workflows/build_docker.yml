@@ -34,9 +34,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Print out all environment variables
-      - run: |
-          env
+      # Get version from package.json
+      - name: Get Version
+        id: package_version
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
+          echo "Package version: $PACKAGE_VERSION"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -58,8 +62,10 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/chatgpt-web:${{ github.ref_name }}
             ${{ secrets.DOCKERHUB_USERNAME }}/chatgpt-web:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/chatgpt-web:v${{ env.VERSION }}
             ${{ vars.DOCKERHUB_NAMESPACE }}/chatgpt-web:${{ github.ref_name }}
             ${{ vars.DOCKERHUB_NAMESPACE }}/chatgpt-web:latest
+            ${{ vars.DOCKERHUB_NAMESPACE }}/chatgpt-web:v${{ env.VERSION }}
           build-args: |
             GIT_COMMIT_HASH=${{ github.sha }}
             RELEASE_VERSION=${{ github.ref_name }}
