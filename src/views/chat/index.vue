@@ -1,26 +1,21 @@
 <script setup lang='ts'>
-import type { Ref } from 'vue'
-import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { storeToRefs } from 'pinia'
 import type { MessageReactive, UploadFileInfo } from 'naive-ui'
-import { NAutoComplete, NButton, NInput, NSelect, NSlider, NSpace, NSpin, NUpload, useDialog, useMessage } from 'naive-ui'
 import html2canvas from 'html2canvas'
-import { Message } from './components'
-import { useScroll } from './hooks/useScroll'
-import { useChat } from './hooks/useChat'
-import HeaderComponent from './components/Header/index.vue'
-import { HoverButton, SvgIcon } from '@/components/common'
-import { useBasicLayout } from '@/hooks/useBasicLayout'
-import { useAuthStore, useChatStore, usePromptStore, useUserStore } from '@/store'
 import {
   fetchChatAPIProcess,
   fetchChatResponseoHistory,
   fetchChatStopResponding,
 } from '@/api'
-import { t } from '@/locales'
-import { debounce } from '@/utils/functions/debounce'
+import { HoverButton, SvgIcon } from '@/components/common'
+import { useBasicLayout } from '@/hooks/useBasicLayout'
 import IconPrompt from '@/icons/Prompt.vue'
+import { t } from '@/locales'
+import { useAuthStore, useChatStore, usePromptStore, useUserStore } from '@/store'
+import { debounce } from '@/utils/functions/debounce'
+import { Message } from './components'
+import HeaderComponent from './components/Header/index.vue'
+import { useChat } from './hooks/useChat'
+import { useScroll } from './hooks/useScroll'
 
 const Prompt = defineAsyncComponent(() => import('@/components/common/Setting/Prompt.vue'))
 
@@ -191,7 +186,7 @@ async function onConversation() {
 
             scrollToBottomIfAtBottom()
           }
-          catch (error) {
+          catch {
             //
           }
         },
@@ -339,7 +334,7 @@ async function onRegenerate(index: number) {
               return fetchChatAPIOnce()
             }
           }
-          catch (error) {
+          catch {
             //
           }
         },
@@ -434,7 +429,7 @@ function handleExport() {
         ms.success(t('chat.exportSuccess'))
         Promise.resolve()
       }
-      catch (error: any) {
+      catch {
         ms.error(t('chat.exportFailed'))
       }
       finally {
@@ -519,7 +514,8 @@ async function loadMoreMessage(event: any) {
     nextTick(() => scrollTo(event.target.scrollHeight - scrollPosition))
   }, () => {
     loadingms = ms.loading(
-      '加载中...', {
+      '加载中...',
+      {
         duration: 0,
       },
     )
@@ -550,6 +546,19 @@ async function handleScroll(event: any) {
   if (scrollTop < 50 && (scrollTop < prevScrollTop || prevScrollTop === undefined))
     handleLoadMoreMessage(event)
   prevScrollTop = scrollTop
+}
+
+async function handleToggleSearchEnabled() {
+  if (!currentChatHistory.value)
+    return
+
+  const searchEnabled = currentChatHistory.value.searchEnabled ?? false
+  currentChatHistory.value.searchEnabled = !searchEnabled
+  await chatStore.setChatSearchEnabled(!searchEnabled, +uuid)
+  if (currentChatHistory.value.searchEnabled)
+    ms.success(t('chat.turnOnSearch'))
+  else
+    ms.warning(t('chat.turnOffSearch'))
 }
 
 async function handleToggleUsingContext() {
@@ -617,7 +626,7 @@ function formatTooltip(value: number) {
 }
 
 // https://github.com/tusen-ai/naive-ui/issues/4887
-function handleFinish(options: { file: UploadFileInfo; event?: ProgressEvent }) {
+function handleFinish(options: { file: UploadFileInfo, event?: ProgressEvent }) {
   if (options.file.status === 'finished') {
     const response = (options.event?.target as XMLHttpRequest).response
     uploadFileKeysRef.value.push(`${response.data.fileKey}`)
@@ -662,14 +671,17 @@ onUnmounted(() => {
       v-if="isMobile"
       :using-context="usingContext"
       :show-prompt="showPrompt"
-      @export="handleExport" @toggle-using-context="handleToggleUsingContext"
+      :search-enabled="currentChatHistory?.searchEnabled"
+      @export="handleExport"
+      @toggle-using-context="handleToggleUsingContext"
+      @toggle-search-enabled="handleToggleSearchEnabled"
       @toggle-show-prompt="showPrompt = true"
     />
     <main class="flex-1 overflow-hidden">
       <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto" @scroll="handleScroll">
         <div
           id="image-wrapper"
-          class="w-full max-w-screen-xl m-auto dark:bg-[#101014]"
+          class="w-full max-w-(--breakpoint-xl) m-auto dark:bg-[#101014]"
           :class="[isMobile ? 'p-2' : 'p-4']"
         >
           <NSpin :show="firstLoading">
@@ -716,7 +728,7 @@ onUnmounted(() => {
       </div>
     </main>
     <footer :class="footerClass">
-      <div class="w-full max-w-screen-xl m-auto">
+      <div class="w-full max-w-(--breakpoint-xl) m-auto">
         <NSpace vertical>
           <div v-if="uploadFileKeysRef.length > 0" class="flex items-center space-x-2 h-10">
             <NSpace>
@@ -767,7 +779,6 @@ onUnmounted(() => {
               <span class="text-xl">
                 <SvgIcon icon="ri:chat-history-line" />
               </span>
-              <!-- <span style="margin-left:.25em">{{ usingContext ? '包含上下文' : '不含上下文' }}</span> -->
             </HoverButton>
             <NSelect
               style="width: 250px"
@@ -776,6 +787,11 @@ onUnmounted(() => {
               :disabled="!!authStore.session?.auth && !authStore.token && !authStore.session?.authProxyEnabled"
               @update-value="(val) => handleSyncChatModel(val)"
             />
+            <HoverButton v-if="!isMobile" :tooltip="currentChatHistory?.searchEnabled ? $t('chat.clickTurnOffSearch') : $t('chat.clickTurnOnSearch')" :class="{ 'text-[#4b9e5f]': currentChatHistory?.searchEnabled, 'text-[#a8071a]': !currentChatHistory?.searchEnabled }" @click="handleToggleSearchEnabled">
+              <span class="text-xl">
+                <SvgIcon icon="mdi:web" />
+              </span>
+            </HoverButton>
             <NSlider v-model:value="userStore.userInfo.advanced.maxContextCount" :max="100" :min="0" :step="1" style="width: 88px" :format-tooltip="formatTooltip" @update:value="() => { userStore.updateSetting(false) }" />
           </div>
           <div class="flex items-center justify-between space-x-2">
@@ -806,6 +822,6 @@ onUnmounted(() => {
         </NSpace>
       </div>
     </footer>
-    <Prompt v-if="showPrompt" v-model:roomId="uuid" v-model:visible="showPrompt" />
+    <Prompt v-if="showPrompt" v-model:room-id="uuid" v-model:visible="showPrompt" />
   </div>
 </template>

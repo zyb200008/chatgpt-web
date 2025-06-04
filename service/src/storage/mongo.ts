@@ -1,11 +1,12 @@
 import type { WithId } from 'mongodb'
-import { MongoClient, ObjectId } from 'mongodb'
-import * as dotenv from 'dotenv'
-import dayjs from 'dayjs'
-import { md5 } from '../utils/security'
 import type { AdvancedConfig, ChatOptions, Config, GiftCard, KeyConfig, UsageResponse, UserPrompt } from './model'
-import { ChatInfo, ChatRoom, ChatUsage, Status, UserConfig, UserInfo, UserRole } from './model'
+import * as process from 'node:process'
+import dayjs from 'dayjs'
+import * as dotenv from 'dotenv'
+import { MongoClient, ObjectId } from 'mongodb'
+import { md5 } from '../utils/security'
 import { getCacheConfig } from './config'
+import { ChatInfo, ChatRoom, ChatUsage, Status, UserConfig, UserInfo, UserRole } from './model'
 
 dotenv.config()
 
@@ -58,13 +59,11 @@ export async function getAmtByCardNo(redeemCardNo: string) {
 }
 // 兑换后更新兑换券信息
 export async function updateGiftCard(redeemCardNo: string, userId: string) {
-  return await redeemCol.updateOne({ cardno: redeemCardNo.trim() }
-    , { $set: { redeemed: 1, redeemed_date: new Date().toLocaleString(), redeemed_by: userId } })
+  return await redeemCol.updateOne({ cardno: redeemCardNo.trim() }, { $set: { redeemed: 1, redeemed_date: new Date().toLocaleString(), redeemed_by: userId } })
 }
 // 使用对话后更新用户额度
 export async function updateAmountMinusOne(userId: string) {
-  const result = await userCol.updateOne({ _id: new ObjectId(userId) }
-    , { $inc: { useAmount: -1 } })
+  const result = await userCol.updateOne({ _id: new ObjectId(userId) }, { $inc: { useAmount: -1 } })
   return result.modifiedCount > 0
 }
 
@@ -115,19 +114,36 @@ export async function updateChat(chatId: string, reasoning: string, response: st
   await chatCol.updateOne(query, update)
 }
 
-export async function insertChatUsage(userId: ObjectId,
-  roomId: number,
-  chatId: ObjectId,
-  messageId: string,
-  model: string,
-  usage: UsageResponse) {
+export async function updateChatSearchQuery(chatId: string, searchQuery: string) {
+  const query = { _id: new ObjectId(chatId) }
+  const update = {
+    $set: {
+      searchQuery,
+    },
+  }
+  const result = await chatCol.updateOne(query, update)
+  return result.modifiedCount > 0
+}
+
+export async function updateChatSearchResult(chatId: string, searchResult: string) {
+  const query = { _id: new ObjectId(chatId) }
+  const update = {
+    $set: {
+      searchResult,
+    },
+  }
+  const result = await chatCol.updateOne(query, update)
+  return result.modifiedCount > 0
+}
+
+export async function insertChatUsage(userId: ObjectId, roomId: number, chatId: ObjectId, messageId: string, model: string, usage: UsageResponse) {
   const chatUsage = new ChatUsage(userId, roomId, chatId, messageId, model, usage)
   await usageCol.insertOne(chatUsage)
   return chatUsage
 }
 
 export async function createChatRoom(userId: string, title: string, roomId: number, chatModel: string) {
-  const room = new ChatRoom(userId, title, roomId, chatModel)
+  const room = new ChatRoom(userId, title, roomId, chatModel, false)
   await roomCol.insertOne(room)
   return room
 }
@@ -182,6 +198,17 @@ export async function updateRoomChatModel(userId: string, roomId: number, chatMo
   return result.modifiedCount > 0
 }
 
+export async function updateRoomSearchEnabled(userId: string, roomId: number, searchEnabled: boolean) {
+  const query = { userId, roomId }
+  const update = {
+    $set: {
+      searchEnabled,
+    },
+  }
+  const result = await roomCol.updateOne(query, update)
+  return result.modifiedCount > 0
+}
+
 export async function getChatRooms(userId: string) {
   const cursor = roomCol.find({ userId, status: { $ne: Status.Deleted } })
   const rooms = []
@@ -214,30 +241,35 @@ export async function getChatRoomsCount(userId: string, page: number, size: numb
         foreignField: 'roomId',
         as: 'chat',
       },
-    }, {
+    },
+    {
       $addFields: {
         title: '$chat.prompt',
         user_ObjectId: {
           $toObjectId: '$userId',
         },
       },
-    }, {
+    },
+    {
       $lookup: {
         from: 'user',
         localField: 'user_ObjectId',
         foreignField: '_id',
         as: 'user',
       },
-    }, {
+    },
+    {
       $unwind: {
         path: '$user',
         preserveNullAndEmptyArrays: false,
       },
-    }, {
+    },
+    {
       $sort: {
         'chat.dateTime': -1,
       },
-    }, {
+    },
+    {
       $addFields: {
         chatCount: {
           $size: '$chat',
@@ -246,13 +278,16 @@ export async function getChatRoomsCount(userId: string, page: number, size: numb
           $arrayElemAt: [
             {
               $slice: [
-                '$chat', -1,
+                '$chat',
+                -1,
               ],
-            }, 0,
+            },
+            0,
           ],
         },
       },
-    }, {
+    },
+    {
       $project: {
         userId: 1,
         title: '$chat.prompt',
@@ -261,13 +296,16 @@ export async function getChatRoomsCount(userId: string, page: number, size: numb
         chatCount: 1,
         dateTime: '$chat.dateTime',
       },
-    }, {
+    },
+    {
       $sort: {
         dateTime: -1,
       },
-    }, {
+    },
+    {
       $skip: skip,
-    }, {
+    },
+    {
       $limit: limit,
     },
   ]
@@ -355,7 +393,8 @@ export async function createUser(email: string, password: string, roles?: UserRo
 
   if (roles && roles.includes(UserRole.Admin))
     userInfo.status = Status.Normal
-  if (status)
+  // Using `if (status !== null)` check because status.Normal value is 0, so `if (status)` would fail when status is Normal
+  if (status !== null)
     userInfo.status = status
 
   userInfo.roles = roles
@@ -378,44 +417,36 @@ export async function createUser(email: string, password: string, roles?: UserRo
 }
 
 export async function updateUserInfo(userId: string, user: UserInfo) {
-  await userCol.updateOne({ _id: new ObjectId(userId) }
-    , { $set: { name: user.name, description: user.description, avatar: user.avatar, useAmount: user.useAmount } })
+  await userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { name: user.name, description: user.description, avatar: user.avatar, useAmount: user.useAmount } })
 }
 
 // 兑换后更新用户对话额度（兑换计算目前在前端完成，将总数报给后端）
 export async function updateUserAmount(userId: string, amt: number) {
-  return userCol.updateOne({ _id: new ObjectId(userId) }
-    , { $set: { useAmount: amt } })
+  return userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { useAmount: amt } })
 }
 
 export async function updateUserChatModel(userId: string, chatModel: string) {
-  await userCol.updateOne({ _id: new ObjectId(userId) }
-    , { $set: { 'config.chatModel': chatModel } })
+  await userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { 'config.chatModel': chatModel } })
 }
 
 export async function updateUserAdvancedConfig(userId: string, config: AdvancedConfig) {
-  await userCol.updateOne({ _id: new ObjectId(userId) }
-    , { $set: { advanced: config } })
+  await userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { advanced: config } })
 }
 
 export async function updateUser2FA(userId: string, secretKey: string) {
-  await userCol.updateOne({ _id: new ObjectId(userId) }
-    , { $set: { secretKey, updateTime: new Date().toLocaleString() } })
+  await userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { secretKey, updateTime: new Date().toLocaleString() } })
 }
 
 export async function disableUser2FA(userId: string) {
-  await userCol.updateOne({ _id: new ObjectId(userId) }
-    , { $set: { secretKey: null, updateTime: new Date().toLocaleString() } })
+  await userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { secretKey: null, updateTime: new Date().toLocaleString() } })
 }
 
 export async function updateUserPassword(userId: string, password: string) {
-  await userCol.updateOne({ _id: new ObjectId(userId) }
-    , { $set: { password, updateTime: new Date().toLocaleString() } })
+  await userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { password, updateTime: new Date().toLocaleString() } })
 }
 
 export async function updateUserPasswordWithVerifyOld(userId: string, oldPassword: string, newPassword: string) {
-  return userCol.updateOne({ _id: new ObjectId(userId), password: oldPassword }
-    , { $set: { password: newPassword, updateTime: new Date().toLocaleString() } })
+  return userCol.updateOne({ _id: new ObjectId(userId), password: oldPassword }, { $set: { password: newPassword, updateTime: new Date().toLocaleString() } })
 }
 
 export async function getUser(email: string): Promise<UserInfo> {
@@ -425,7 +456,7 @@ export async function getUser(email: string): Promise<UserInfo> {
   return userInfo
 }
 
-export async function getUsers(page: number, size: number): Promise<{ users: UserInfo[]; total: number }> {
+export async function getUsers(page: number, size: number): Promise<{ users: UserInfo[], total: number }> {
   const query = { status: { $ne: Status.Deleted } }
   const cursor = userCol.find(query).sort({ createTime: -1 })
   const total = await userCol.countDocuments(query)
@@ -567,7 +598,7 @@ export async function getUserStatisticsByDay(userId: ObjectId, start: number, en
   return result
 }
 
-export async function getKeys(): Promise<{ keys: KeyConfig[]; total: number }> {
+export async function getKeys(): Promise<{ keys: KeyConfig[], total: number }> {
   const query = { status: { $ne: Status.Disabled } }
   const cursor = keyCol.find(query)
   const total = await keyCol.countDocuments(query)
@@ -599,7 +630,7 @@ export async function upsertUserPrompt(userPrompt: UserPrompt): Promise<UserProm
   }
   return userPrompt
 }
-export async function getUserPromptList(userId: string): Promise<{ data: UserPrompt[]; total: number }> {
+export async function getUserPromptList(userId: string): Promise<{ data: UserPrompt[], total: number }> {
   const query = { userId }
   const total = await userPromptCol.countDocuments(query)
   const cursor = userPromptCol.find(query).sort({ _id: -1 })

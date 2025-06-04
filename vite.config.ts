@@ -1,17 +1,48 @@
-import path from 'path'
-import { defineConfig, loadEnv } from 'vite'
+import path from 'node:path'
+import { fileURLToPath, URL } from 'node:url'
+import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
+import AutoImport from 'unplugin-auto-import/vite'
+import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
+import Components from 'unplugin-vue-components/vite'
+import { defineConfig, loadEnv } from 'vite'
 
-export default defineConfig((env) => {
-  const viteEnv = loadEnv(env.mode, process.cwd()) as unknown as ImportMetaEnv
+// https://vite.dev/config/#using-environment-variables-in-config
+export default defineConfig(({ mode }) => {
+  const cwd = fileURLToPath(new URL('./', import.meta.url))
+  const viteEnv = loadEnv(mode, cwd) as ImportMetaEnv
 
   return {
     resolve: {
       alias: {
-        '@': path.resolve(process.cwd(), 'src'),
+        '@': path.resolve(cwd, 'src'),
       },
     },
-    plugins: [vue()],
+    plugins: [
+      vue(),
+      tailwindcss(),
+      AutoImport({
+        imports: [
+          'vue',
+          'vue-router',
+          'pinia',
+          {
+            'naive-ui': [
+              'useDialog',
+              'useMessage',
+              'useNotification',
+              'useLoadingBar',
+            ],
+          },
+        ],
+      }),
+      Components({
+        dirs: [],
+        resolvers: [
+          NaiveUiResolver(),
+        ],
+      }),
+    ],
     server: {
       host: '0.0.0.0',
       port: 1002,

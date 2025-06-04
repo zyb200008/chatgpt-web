@@ -1,15 +1,13 @@
 <script setup lang='ts'>
-import { computed, ref } from 'vue'
-import { NButton, NButtonGroup, NDropdown, NPopover, NSpace, useMessage } from 'naive-ui'
-import AvatarComponent from './Avatar.vue'
-import TextComponent from './Text.vue'
-import Reasoning from './Reasoning.vue'
 import { SvgIcon } from '@/components/common'
+import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useIconRender } from '@/hooks/useIconRender'
 import { t } from '@/locales'
-import { useBasicLayout } from '@/hooks/useBasicLayout'
-import { copyToClip } from '@/utils/copy'
 import { useAppStore } from '@/store'
+import { copyToClip } from '@/utils/copy'
+import AvatarComponent from './Avatar.vue'
+import Reasoning from './Reasoning.vue'
+import TextComponent from './Text.vue'
 
 const props = defineProps<Props>()
 
@@ -164,17 +162,17 @@ function isEventTargetValid(event: any) {
   >
     <div class="flex flex-col">
       <div
-        class="flex items-center justify-center flex-shrink-0 h-8 overflow-hidden rounded-full basis-8"
+        class="flex items-center justify-center shrink-0 h-8 overflow-hidden rounded-full basis-8"
         :class="[inversion ? 'ml-2' : 'mr-2']"
       >
         <AvatarComponent :image="inversion" :only-default="isRecord" />
       </div>
       <div
         v-show="props.currentNavIndex === props.index && appStore.fastDelMsg"
-        class="flex-grow flex items-center justify-center overflow-hidden rounded-full"
+        class="grow flex items-center justify-center overflow-hidden rounded-full"
         :class="[inversion ? 'ml-2' : 'mr-2']"
       >
-        <button class="focus:outline-none" style="opacity: 0.5;" @click="fastDelMsg">
+        <button class="focus:outline-hidden" style="opacity: 0.5;" @click="fastDelMsg">
           <SvgIcon class="text-lg" icon="ri:delete-bin-line" />
         </button>
       </div>

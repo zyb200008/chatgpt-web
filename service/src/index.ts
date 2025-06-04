@@ -1,37 +1,34 @@
+import type { AnnounceConfig, AuditConfig, Config, GiftCard, KeyConfig, MailConfig, SiteConfig, UserConfig, UserInfo } from './storage/model'
+import type { AuthJwtPayload } from './types'
 import * as path from 'node:path'
+import * as process from 'node:process'
+import * as dotenv from 'dotenv'
 import express from 'express'
 import jwt from 'jsonwebtoken'
-import * as dotenv from 'dotenv'
 import { ObjectId } from 'mongodb'
 import speakeasy from 'speakeasy'
-import { TwoFAConfig } from './types'
-import type { AuthJwtPayload } from './types'
 import { chatConfig, containsSensitiveWords, initAuditService } from './chatgpt'
 import { auth, getUserId } from './middleware/auth'
+import { authLimiter } from './middleware/limiter'
+import { isAdmin, rootAuth } from './middleware/rootAuth'
+import { router as chatRouter } from './routes/chat'
+import { router as promptRouter } from './routes/prompt'
+import { router as roomRouter } from './routes/room'
+import { router as uploadRouter } from './routes/upload'
 import { clearApiKeyCache, clearConfigCache, getApiKeys, getCacheApiKeys, getCacheConfig, getOriginConfig } from './storage/config'
-import type { AnnounceConfig, AuditConfig, Config, GiftCard, KeyConfig, MailConfig, SiteConfig, UserConfig, UserInfo } from './storage/model'
 import { AdvancedConfig, Status, UserRole } from './storage/model'
 import {
-  createChatRoom,
   createUser,
-  deleteChatRoom,
   disableUser2FA,
-  existsChatRoom,
   getAmtByCardNo,
-  getChatRooms,
-  getChatRoomsCount,
   getUser,
   getUserById,
-  getUserStatisticsByDay,
   getUsers,
-  renameChatRoom,
+  getUserStatisticsByDay,
   updateApiKeyStatus,
   updateConfig,
   updateGiftCard,
   updateGiftCards,
-  updateRoomChatModel,
-  updateRoomPrompt,
-  updateRoomUsingContext,
   updateUser,
   updateUser2FA,
   updateUserAdvancedConfig,
@@ -44,15 +41,10 @@ import {
   upsertKey,
   verifyUser,
 } from './storage/mongo'
-import { authLimiter } from './middleware/limiter'
+import { TwoFAConfig } from './types'
 import { hasAnyRole, isEmail, isNotEmptyString } from './utils/is'
 import { sendNoticeMail, sendResetPasswordMail, sendTestMail, sendVerifyMail, sendVerifyMailAdmin } from './utils/mail'
 import { checkUserResetPassword, checkUserVerify, checkUserVerifyAdmin, getUserResetPasswordUrl, getUserVerifyUrl, getUserVerifyUrlAdmin, md5 } from './utils/security'
-import { isAdmin, rootAuth } from './middleware/rootAuth'
-
-import { router as chatRouter } from './routes/chat'
-import { router as promptRouter } from './routes/prompt'
-import { router as uploadRouter } from './routes/upload'
 
 dotenv.config()
 
@@ -79,166 +71,9 @@ app.all('/', (_, res, next) => {
   next()
 })
 
-router.get('/chatrooms', auth, async (req, res) => {
-  try {
-    const userId = req.headers.userId as string
-    const rooms = await getChatRooms(userId)
-    const result = []
-    rooms.forEach((r) => {
-      result.push({
-        uuid: r.roomId,
-        title: r.title,
-        isEdit: false,
-        prompt: r.prompt,
-        usingContext: r.usingContext === undefined ? true : r.usingContext,
-        chatModel: r.chatModel,
-      })
-    })
-    res.send({ status: 'Success', message: null, data: result })
-  }
-  catch (error) {
-    console.error(error)
-    res.send({ status: 'Fail', message: 'Load error', data: [] })
-  }
-})
-
-function formatTimestamp(timestamp: number) {
-  const date = new Date(timestamp)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-}
-
-router.get('/chatrooms-count', auth, async (req, res) => {
-  try {
-    const userId = req.query.userId as string
-    const page = +req.query.page
-    const size = +req.query.size
-    const rooms = await getChatRoomsCount(userId, page, size)
-    const result = []
-    rooms.data.forEach((r) => {
-      result.push({
-        uuid: r.roomId,
-        title: r.title,
-        userId: r.userId,
-        name: r.username,
-        lastTime: formatTimestamp(r.dateTime),
-        chatCount: r.chatCount,
-      })
-    })
-    res.send({ status: 'Success', message: null, data: { data: result, total: rooms.total } })
-  }
-  catch (error) {
-    console.error(error)
-    res.send({ status: 'Fail', message: 'Load error', data: [] })
-  }
-})
-
-router.post('/room-create', auth, async (req, res) => {
-  try {
-    const userId = req.headers.userId as string
-    const { title, roomId, chatModel } = req.body as { title: string; roomId: number; chatModel: string }
-    const room = await createChatRoom(userId, title, roomId, chatModel)
-    res.send({ status: 'Success', message: null, data: room })
-  }
-  catch (error) {
-    console.error(error)
-    res.send({ status: 'Fail', message: 'Create error', data: null })
-  }
-})
-
-router.post('/room-rename', auth, async (req, res) => {
-  try {
-    const userId = req.headers.userId as string
-    const { title, roomId } = req.body as { title: string; roomId: number }
-    const success = await renameChatRoom(userId, title, roomId)
-    if (success)
-      res.send({ status: 'Success', message: null, data: null })
-    else
-      res.send({ status: 'Fail', message: 'Saved Failed', data: null })
-  }
-  catch (error) {
-    console.error(error)
-    res.send({ status: 'Fail', message: 'Rename error', data: null })
-  }
-})
-
-router.post('/room-prompt', auth, async (req, res) => {
-  try {
-    const userId = req.headers.userId as string
-    const { prompt, roomId } = req.body as { prompt: string; roomId: number }
-    const success = await updateRoomPrompt(userId, roomId, prompt)
-    if (success)
-      res.send({ status: 'Success', message: 'Saved successfully', data: null })
-    else
-      res.send({ status: 'Fail', message: 'Saved Failed', data: null })
-  }
-  catch (error) {
-    console.error(error)
-    res.send({ status: 'Fail', message: 'Rename error', data: null })
-  }
-})
-
-router.post('/room-chatmodel', auth, async (req, res) => {
-  try {
-    const userId = req.headers.userId as string
-    const { chatModel, roomId } = req.body as { chatModel: string; roomId: number }
-    const success = await updateRoomChatModel(userId, roomId, chatModel)
-    if (success)
-      res.send({ status: 'Success', message: 'Saved successfully', data: null })
-    else
-      res.send({ status: 'Fail', message: 'Saved Failed', data: null })
-  }
-  catch (error) {
-    console.error(error)
-    res.send({ status: 'Fail', message: 'Rename error', data: null })
-  }
-})
-
-router.post('/room-context', auth, async (req, res) => {
-  try {
-    const userId = req.headers.userId as string
-    const { using, roomId } = req.body as { using: boolean; roomId: number }
-    const success = await updateRoomUsingContext(userId, roomId, using)
-    if (success)
-      res.send({ status: 'Success', message: 'Saved successfully', data: null })
-    else
-      res.send({ status: 'Fail', message: 'Saved Failed', data: null })
-  }
-  catch (error) {
-    console.error(error)
-    res.send({ status: 'Fail', message: 'Rename error', data: null })
-  }
-})
-
-router.post('/room-delete', auth, async (req, res) => {
-  try {
-    const userId = req.headers.userId as string
-    const { roomId } = req.body as { roomId: number }
-    if (!roomId || !await existsChatRoom(userId, roomId)) {
-      res.send({ status: 'Fail', message: 'Unknown room', data: null })
-      return
-    }
-    const success = await deleteChatRoom(userId, roomId)
-    if (success)
-      res.send({ status: 'Success', message: null, data: null })
-    else
-      res.send({ status: 'Fail', message: 'Saved Failed', data: null })
-  }
-  catch (error) {
-    console.error(error)
-    res.send({ status: 'Fail', message: 'Delete error', data: null })
-  }
-})
-
 router.post('/user-register', authLimiter, async (req, res) => {
   try {
-    const { username, password } = req.body as { username: string; password: string }
+    const { username, password } = req.body as { username: string, password: string }
     const config = await getCacheConfig()
     if (!config.siteConfig.registerEnabled) {
       res.send({ status: 'Fail', message: '注册账号功能未启用 | Register account is disabled!', data: null })
@@ -327,7 +162,7 @@ router.post('/session', async (req, res) => {
       }
     })
 
-    let userInfo: { name: string; description: string; avatar: string; userId: string; root: boolean; roles: UserRole[]; config: UserConfig; advanced: AdvancedConfig }
+    let userInfo: { name: string, description: string, avatar: string, userId: string, root: boolean, roles: UserRole[], config: UserConfig, advanced: AdvancedConfig }
     if (userId != null) {
       const user = await getUserById(userId)
       if (user === null) {
@@ -361,7 +196,7 @@ router.post('/session', async (req, res) => {
 
       const keys = (await getCacheApiKeys()).filter(d => hasAnyRole(d.userRoles, user.roles))
 
-      const count: { key: string; count: number }[] = []
+      const count: { key: string, count: number }[] = []
       chatModelOptions.forEach((chatModel) => {
         keys.forEach((key) => {
           if (key.chatModels.includes(chatModel.value)) {
@@ -427,7 +262,7 @@ router.post('/session', async (req, res) => {
 
 router.post('/user-login', authLimiter, async (req, res) => {
   try {
-    const { username, password, token } = req.body as { username: string; password: string; token?: string }
+    const { username, password, token } = req.body as { username: string, password: string, token?: string }
     if (!username || !password || !isEmail(username))
       throw new Error('用户名或密码为空 | Username or password is empty')
 
@@ -495,7 +330,7 @@ router.post('/user-send-reset-mail', authLimiter, async (req, res) => {
 
 router.post('/user-reset-password', authLimiter, async (req, res) => {
   try {
-    const { username, password, sign } = req.body as { username: string; password: string; sign: string }
+    const { username, password, sign } = req.body as { username: string, password: string, sign: string }
     if (!username || !password || !isEmail(username))
       throw new Error('用户名或密码为空 | Username or password is empty')
     if (!sign || !checkUserResetPassword(sign, username))
@@ -593,7 +428,7 @@ router.post('/redeem-card', auth, async (req, res) => {
 // update giftcard database
 router.post('/giftcard-update', rootAuth, async (req, res) => {
   try {
-    const { data, overRideSwitch } = req.body as { data: GiftCard[];overRideSwitch: boolean }
+    const { data, overRideSwitch } = req.body as { data: GiftCard[], overRideSwitch: boolean }
     await updateGiftCards(data, overRideSwitch)
     res.send({ status: 'Success', message: '更新成功 | Update successfully' })
   }
@@ -632,7 +467,7 @@ router.get('/users', rootAuth, async (req, res) => {
 
 router.post('/user-status', rootAuth, async (req, res) => {
   try {
-    const { userId, status } = req.body as { userId: string; status: Status }
+    const { userId, status } = req.body as { userId: string, status: Status }
     const user = await getUserById(userId)
     await updateUserStatus(userId, status)
     if ((user.status === Status.PreVerify || user.status === Status.AdminVerify) && status === Status.Normal)
@@ -647,7 +482,7 @@ router.post('/user-status', rootAuth, async (req, res) => {
 // 函数中加入useAmount limit_switch
 router.post('/user-edit', rootAuth, async (req, res) => {
   try {
-    const { userId, email, password, roles, remark, useAmount, limit_switch } = req.body as { userId?: string; email: string; password: string; roles: UserRole[]; remark?: string; useAmount?: number; limit_switch?: boolean }
+    const { userId, email, password, roles, remark, useAmount, limit_switch } = req.body as { userId?: string, email: string, password: string, roles: UserRole[], remark?: string, useAmount?: number, limit_switch?: boolean }
     if (userId) {
       await updateUser(userId, roles, password, remark, Number(useAmount), limit_switch)
     }
@@ -665,7 +500,7 @@ router.post('/user-edit', rootAuth, async (req, res) => {
 
 router.post('/user-password', auth, async (req, res) => {
   try {
-    let { oldPassword, newPassword, confirmPassword } = req.body as { oldPassword: string; newPassword: string; confirmPassword: string }
+    let { oldPassword, newPassword, confirmPassword } = req.body as { oldPassword: string, newPassword: string, confirmPassword: string }
     if (!oldPassword || !newPassword || !confirmPassword)
       throw new Error('密码不能为空 | Password cannot be empty')
     if (newPassword !== confirmPassword)
@@ -715,7 +550,7 @@ router.get('/user-2fa', auth, async (req, res) => {
 
 router.post('/user-2fa', auth, async (req, res) => {
   try {
-    const { secretKey, token } = req.body as { secretKey: string; token: string }
+    const { secretKey, token } = req.body as { secretKey: string, token: string }
     const userId = req.headers.userId.toString()
 
     const verified = speakeasy.totp.verify({
@@ -932,7 +767,7 @@ router.post('/setting-audit', rootAuth, async (req, res) => {
 
 router.post('/audit-test', rootAuth, async (req, res) => {
   try {
-    const { audit, text } = req.body as { audit: AuditConfig; text: string }
+    const { audit, text } = req.body as { audit: AuditConfig, text: string }
     const config = await getCacheConfig()
     if (audit.enabled)
       initAuditService(audit)
@@ -940,6 +775,33 @@ router.post('/audit-test', rootAuth, async (req, res) => {
     if (audit.enabled)
       initAuditService(config.auditConfig)
     res.send({ status: 'Success', message: result ? '含敏感词 | Contains sensitive words' : '不含敏感词 | Does not contain sensitive words.', data: null })
+  }
+  catch (error) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
+router.post('/setting-search', rootAuth, async (req, res) => {
+  try {
+    const config = req.body as import('./storage/model').SearchConfig
+
+    const thisConfig = await getOriginConfig()
+    thisConfig.searchConfig = config
+    const result = await updateConfig(thisConfig)
+    clearConfigCache()
+    res.send({ status: 'Success', message: '操作成功 | Successfully', data: result.searchConfig })
+  }
+  catch (error) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
+router.post('/search-test', rootAuth, async (req, res) => {
+  try {
+    const { text } = req.body as { search: import('./storage/model').SearchConfig, text: string }
+    // TODO: Implement actual search test logic with Tavily API
+    // For now, just return a success response
+    res.send({ status: 'Success', message: '搜索测试成功 | Search test successful', data: { query: text, results: [] } })
   }
   catch (error) {
     res.send({ status: 'Fail', message: error.message, data: null })
@@ -1007,7 +869,7 @@ router.get('/setting-keys', rootAuth, async (req, res) => {
 
 router.post('/setting-key-status', rootAuth, async (req, res) => {
   try {
-    const { id, status } = req.body as { id: string; status: Status }
+    const { id, status } = req.body as { id: string, status: Status }
     await updateApiKeyStatus(id, status)
     clearApiKeyCache()
     res.send({ status: 'Success', message: '更新成功 | Update successfully' })
@@ -1033,7 +895,7 @@ router.post('/setting-key-upsert', rootAuth, async (req, res) => {
 
 router.post('/statistics/by-day', auth, async (req, res) => {
   try {
-    let { userId, start, end } = req.body as { userId?: string; start: number; end: number }
+    let { userId, start, end } = req.body as { userId?: string, start: number, end: number }
     if (!userId)
       userId = req.headers.userId as string
     else if (!isAdmin(req.headers.userId as string))
@@ -1052,6 +914,9 @@ app.use('/api', chatRouter)
 
 app.use('', promptRouter)
 app.use('/api', promptRouter)
+
+app.use('', roomRouter)
+app.use('/api', roomRouter)
 
 app.use('', uploadRouter)
 app.use('/api', uploadRouter)

@@ -1,6 +1,4 @@
 <script setup lang='ts'>
-import { onMounted, ref } from 'vue'
-import { NButton, NInput, NSpin, NSwitch, useMessage } from 'naive-ui'
 import type { AnnounceConfig, ConfigState } from './model'
 import { fetchChatConfig, fetchUpdateAnnounce } from '@/api'
 import { t } from '@/locales'
@@ -45,7 +43,7 @@ onMounted(() => {
   <NSpin :show="loading">
     <div class="space-y-6">
       <div class="flex items-center space-x-4">
-        <span class="flex-shrink-0 w-[100px]">{{ $t('setting.announceEnabled') }}</span>
+        <span class="shrink-0 w-[100px]">{{ $t('setting.announceEnabled') }}</span>
         <div class="flex-1">
           <NSwitch
             :round="false" :value="config && config.enabled"
@@ -54,7 +52,7 @@ onMounted(() => {
         </div>
       </div>
       <div class="flex items-center space-x-4">
-        <span class="flex-shrink-0 w-[100px]">{{ $t('setting.announceWords') }}</span>
+        <span class="shrink-0 w-[100px]">{{ $t('setting.announceWords') }}</span>
         <div class="flex-1">
           <NInput
             :value="config && config.announceWords"
@@ -65,7 +63,7 @@ onMounted(() => {
           />
         </div>
       </div>
-      <span class="flex-shrink-0 w-[100px]" />
+      <span class="shrink-0 w-[100px]" />
       <div class="flex flex-wrap items-center gap-4">
         <NButton :loading="saving" type="primary" @click="updateAnnouncement()">
           {{ $t('common.save') }}

@@ -13,6 +13,7 @@ export class ConfigState {
   siteConfig?: SiteConfig
   mailConfig?: MailConfig
   auditConfig?: AuditConfig
+  searchConfig?: SearchConfig
   announceConfig?: AnnounceConfig
 }
 
@@ -52,9 +53,9 @@ export interface TextAuditServiceOptions {
 }
 export enum TextAudioType {
   None = 0,
-  Request = 1 << 0, // 二进制 01
-  Response = 1 << 1, // 二进制 10
-  All = Request | Response, // 二进制 11
+  Request = 1, // 二进制 01
+  Response = 2, // 二进制 10
+  All = 3, // 二进制 11
 }
 
 export class AuditConfig {
@@ -179,4 +180,25 @@ export interface GiftCard {
   cardno: string
   amount: number
   redeemed: number
+}
+
+export type SearchServiceProvider = 'tavily' | ''
+
+export interface SearchServiceOptions {
+  apiKey: string
+}
+
+export class SearchConfig {
+  enabled: boolean
+  provider: SearchServiceProvider
+  options: SearchServiceOptions
+  systemMessageWithSearchResult: string
+  systemMessageGetSearchQuery: string
+  constructor(enabled: boolean, provider: SearchServiceProvider, options: SearchServiceOptions, systemMessageWithSearchResult: string, systemMessageGetSearchQuery: string) {
+    this.enabled = enabled
+    this.provider = provider
+    this.options = options
+    this.systemMessageWithSearchResult = systemMessageWithSearchResult
+    this.systemMessageGetSearchQuery = systemMessageGetSearchQuery
+  }
 }

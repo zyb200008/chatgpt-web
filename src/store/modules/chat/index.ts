@@ -1,7 +1,3 @@
-import { defineStore } from 'pinia'
-import { useUserStore } from '../user'
-import { getLocalState, setLocalState } from './helper'
-import { router } from '@/router'
 import {
   fetchClearChat,
   fetchCreateChatRoom,
@@ -11,9 +7,13 @@ import {
   fetchGetChatRooms,
   fetchRenameChatRoom,
   fetchUpdateChatRoomChatModel,
+  fetchUpdateChatRoomSearchEnabled,
   fetchUpdateChatRoomUsingContext,
   fetchUpdateUserChatModel,
 } from '@/api'
+import { router } from '@/router'
+import { useUserStore } from '../user'
+import { getLocalState, setLocalState } from './helper'
 
 export const useChatStore = defineStore('chat-store', {
   state: (): Chat.ChatState => getLocalState(),
@@ -60,9 +60,7 @@ export const useChatStore = defineStore('chat-store', {
       callback && callback()
     },
 
-    async syncChat(h: Chat.History, lastId?: number, callback?: () => void,
-      callbackForStartRequest?: () => void,
-      callbackForEmptyMessage?: () => void) {
+    async syncChat(h: Chat.History, lastId?: number, callback?: () => void, callbackForStartRequest?: () => void, callbackForEmptyMessage?: () => void) {
       if (!h.uuid) {
         callback && callback()
         return
@@ -107,10 +105,21 @@ export const useChatStore = defineStore('chat-store', {
     },
 
     async setChatModel(chatModel: string, roomId: number) {
+      const index = this.history.findIndex(item => item.uuid === this.active)
+      this.history[index].chatModel = chatModel
       await fetchUpdateChatRoomChatModel(chatModel, roomId)
       const userStore = useUserStore()
       userStore.userInfo.config.chatModel = chatModel
       await fetchUpdateUserChatModel(chatModel)
+    },
+
+    async setChatSearchEnabled(searchEnabled: boolean, roomId: number) {
+      const index = this.history.findIndex(item => item.uuid === this.active)
+      if (index !== -1) {
+        this.history[index].searchEnabled = searchEnabled
+        await fetchUpdateChatRoomSearchEnabled(searchEnabled, roomId)
+        this.recordState()
+      }
     },
 
     async addHistory(history: Chat.History, chatData: Chat.Chat[] = []) {

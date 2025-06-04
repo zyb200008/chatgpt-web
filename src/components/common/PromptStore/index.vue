@@ -1,14 +1,13 @@
 <script setup lang='ts'>
 import type { DataTableColumns } from 'naive-ui'
-import { computed, h, onMounted, ref, watch } from 'vue'
-import { NButton, NCard, NDataTable, NDivider, NInput, NList, NListItem, NModal, NPopconfirm, NSpace, NTabPane, NTabs, NThing, useMessage } from 'naive-ui'
-import PromptRecommend from '../../../assets/recommend.json'
-import { SvgIcon } from '..'
-import { useBasicLayout } from '@/hooks/useBasicLayout'
-import { t } from '@/locales'
+import { NButton } from 'naive-ui'
 import { fetchClearUserPrompt, fetchDeleteUserPrompt, fetchImportUserPrompt, fetchUpsertUserPrompt, fetchUserPromptList } from '@/api'
 import { UserPrompt } from '@/components/common/Setting/model'
+import { useBasicLayout } from '@/hooks/useBasicLayout'
+import { t } from '@/locales'
 import { useAuthStoreWithout, usePromptStore } from '@/store'
+import { SvgIcon } from '..'
+import PromptRecommend from '../../../assets/recommend.json'
 
 interface DataProps {
   _id?: string
@@ -254,7 +253,7 @@ async function downloadPromptTemplate() {
     if ('key' in jsonData[0] && 'value' in jsonData[0])
       tempPromptValue.value = JSON.stringify(jsonData)
     if ('act' in jsonData[0] && 'prompt' in jsonData[0]) {
-      const newJsonData = jsonData.map((item: { act: string; prompt: string }) => {
+      const newJsonData = jsonData.map((item: { act: string, prompt: string }) => {
         return {
           key: item.act,
           value: item.prompt,
@@ -291,7 +290,8 @@ function renderTemplate() {
 const pagination = computed(() => {
   const [pageSize, pageSlot] = isMobile.value ? [6, 5] : [7, 15]
   return {
-    pageSize, pageSlot,
+    pageSize,
+    pageSlot,
   }
 })
 
@@ -322,8 +322,7 @@ function createColumns(): DataTableColumns<DataProps> {
               onClick: () => changeShowModal('modify', row),
             },
             { default: () => t('common.edit') },
-          ),
-          h(
+          ), h(
             NButton,
             {
               tertiary: true,
@@ -332,8 +331,7 @@ function createColumns(): DataTableColumns<DataProps> {
               onClick: () => deletePromptTemplate(row),
             },
             { default: () => t('common.delete') },
-          ),
-          ],
+          )],
         })
       },
     },

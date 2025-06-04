@@ -1,19 +1,25 @@
-import * as dotenv from 'dotenv'
-import OpenAI from 'openai'
-import { HttpsProxyAgent } from 'https-proxy-agent'
 import type { AuditConfig, KeyConfig, UserInfo } from '../storage/model'
-import { Status, UsageResponse } from '../storage/model'
-import { convertImageUrl } from '../utils/image'
-import type { TextAuditService } from '../utils/textAudit'
-import { textAuditServices } from '../utils/textAudit'
-import { getCacheApiKeys, getCacheConfig, getOriginConfig } from '../storage/config'
-import { sendResponse } from '../utils'
-import { hasAnyRole, isNotEmptyString } from '../utils/is'
 import type { ModelConfig } from '../types'
-import { getChatByMessageId, updateRoomChatModel } from '../storage/mongo'
+import type { TextAuditService } from '../utils/textAudit'
 import type { ChatMessage, RequestOptions } from './types'
+import { tavily } from '@tavily/core'
+import dayjs from 'dayjs'
+import * as dotenv from 'dotenv'
+import { HttpsProxyAgent } from 'https-proxy-agent'
+import OpenAI from 'openai'
+import { getCacheApiKeys, getCacheConfig, getOriginConfig } from '../storage/config'
+import { Status, UsageResponse } from '../storage/model'
+import { getChatByMessageId, updateChatSearchQuery, updateChatSearchResult } from '../storage/mongo'
+import { sendResponse } from '../utils'
+import { convertImageUrl } from '../utils/image'
+import { hasAnyRole, isNotEmptyString } from '../utils/is'
+import { textAuditServices } from '../utils/textAudit'
 
 dotenv.config()
+
+function renderSystemMessage(template: string, currentTime: string): string {
+  return template.replace(/\{current_time\}/g, currentTime)
+}
 
 const ErrorCodeMessage: Record<string, string> = {
   401: '[OpenAI] 提供错误的API密钥 | Incorrect API key provided',
@@ -25,7 +31,7 @@ const ErrorCodeMessage: Record<string, string> = {
 }
 
 let auditService: TextAuditService
-const _lockedKeys: { key: string; lockedTime: number }[] = []
+const _lockedKeys: { key: string, lockedTime: number }[] = []
 
 export async function initApi(key: KeyConfig) {
   const config = await getCacheConfig()
@@ -46,19 +52,18 @@ export async function initApi(key: KeyConfig) {
   return client
 }
 
-const processThreads: { userId: string; abort: AbortController; messageId: string }[] = []
+const processThreads: { userId: string, abort: AbortController, messageId: string }[] = []
 
 async function chatReplyProcess(options: RequestOptions) {
+  const globalConfig = await getCacheConfig()
   const model = options.room.chatModel
+  const searchEnabled = options.room.searchEnabled
   const key = await getRandomApiKey(options.user, model)
   const userId = options.user._id.toString()
   const maxContextCount = options.user.advanced.maxContextCount ?? 20
   const messageId = options.messageId
   if (key == null || key === undefined)
     throw new Error('没有对应的apikeys配置。请再试一次 | No available apikeys configuration. Please try again.')
-
-  // Add Chat Record
-  updateRoomChatModel(userId, options.room.roomId, model)
 
   const { message, uploadFileKeys, parentMessageId, process, systemMessage, temperature, top_p } = options
 
@@ -85,31 +90,58 @@ async function chatReplyProcess(options: RequestOptions) {
     }
 
     // Prepare the user message content (text and images)
-    let content: string | OpenAI.Chat.ChatCompletionContentPart[] = message
-
-    // Handle image uploads if present
-    if (uploadFileKeys && uploadFileKeys.length > 0) {
-      content = [
-        {
-          type: 'text',
-          text: message,
-        },
-      ]
-      for (const uploadFileKey of uploadFileKeys) {
-        content.push({
-          type: 'image_url',
-          image_url: {
-            url: await convertImageUrl(uploadFileKey),
-          },
-        })
-      }
-    }
+    const content: string | OpenAI.Chat.ChatCompletionContentPart[] = await createContent(message, uploadFileKeys)
 
     // Add the user message
     messages.push({
       role: 'user',
       content,
     })
+
+    let hasSearchResult = false
+    const searchConfig = globalConfig.searchConfig
+    if (searchConfig.enabled && searchConfig?.options?.apiKey && searchEnabled) {
+      messages[0].content = renderSystemMessage(searchConfig.systemMessageGetSearchQuery, dayjs().format('YYYY-MM-DD HH:mm:ss'))
+      const completion = await openai.chat.completions.create({
+        model,
+        messages,
+      })
+      let searchQuery: string = completion.choices[0].message.content
+      const match = searchQuery.match(/<search_query>([\s\S]*)<\/search_query>/i)
+      if (match)
+        searchQuery = match[1].trim()
+      else
+        searchQuery = ''
+
+      if (searchQuery) {
+        await updateChatSearchQuery(messageId, searchQuery)
+
+        const tvly = tavily({ apiKey: searchConfig.options?.apiKey })
+        const response = await tvly.search(
+          searchQuery,
+          {
+            includeRawContent: true,
+            timeout: 300,
+          },
+        )
+
+        const searchResult = JSON.stringify(response)
+        await updateChatSearchResult(messageId, searchResult)
+
+        messages.push({
+          role: 'user',
+          content: `Additional information from web searche engine.
+search query: <search_query>${searchQuery}</search_query>
+search result: <search_result>${searchResult}</search_result>`,
+        })
+
+        messages[0].content = renderSystemMessage(searchConfig.systemMessageWithSearchResult, dayjs().format('YYYY-MM-DD HH:mm:ss'))
+        hasSearchResult = true
+      }
+    }
+
+    if (!hasSearchResult)
+      messages[0].content = systemMessage
 
     // Create the chat completion with streaming
     const stream = await openai.chat.completions.create({
@@ -244,26 +276,7 @@ async function getMessageById(id: string): Promise<ChatMessage | undefined> {
     }
     else {
       if (isPrompt) { // prompt
-        let content: string | OpenAI.Chat.ChatCompletionContentPart[] = chatInfo.prompt
-        if (chatInfo.images && chatInfo.images.length > 0) {
-          content = [
-            {
-              type: 'text',
-              text: chatInfo.prompt,
-            },
-          ]
-          for (const image of chatInfo.images) {
-            const imageUrlBase64 = await convertImageUrl(image)
-            if (imageUrlBase64) {
-              content.push({
-                type: 'image_url',
-                image_url: {
-                  url: await convertImageUrl(image),
-                },
-              })
-            }
-          }
-        }
+        const content: string | OpenAI.Chat.ChatCompletionContentPart[] = await createContent(chatInfo.prompt, chatInfo.images)
         return {
           id,
           parentMessageId,
@@ -305,10 +318,38 @@ async function randomKeyConfig(keys: KeyConfig[]): Promise<KeyConfig | null> {
 }
 
 async function getRandomApiKey(user: UserInfo, chatModel: string): Promise<KeyConfig | undefined> {
-  const keys = (await getCacheApiKeys()).filter(d => hasAnyRole(d.userRoles, user.roles))
-    .filter(d => d.chatModels.includes(chatModel))
+  const keys = (await getCacheApiKeys()).filter(d => hasAnyRole(d.userRoles, user.roles)).filter(d => d.chatModels.includes(chatModel))
 
   return randomKeyConfig(keys)
+}
+
+// Helper function to create content with text and optional images
+async function createContent(text: string, images?: string[]): Promise<string | OpenAI.Chat.ChatCompletionContentPart[]> {
+  // If no images or empty array, return just the text
+  if (!images || images.length === 0)
+    return text
+
+  // Create content with text and images
+  const content: OpenAI.Chat.ChatCompletionContentPart[] = [
+    {
+      type: 'text',
+      text,
+    },
+  ]
+
+  for (const image of images) {
+    const imageUrl = await convertImageUrl(image)
+    if (imageUrl) {
+      content.push({
+        type: 'image_url',
+        image_url: {
+          url: imageUrl,
+        },
+      })
+    }
+  }
+
+  return content
 }
 
 // Helper function to add previous messages to the conversation context
@@ -331,4 +372,4 @@ async function addPreviousMessages(parentMessageId: string, maxContextCount: num
   }
 }
 
-export { chatReplyProcess, chatConfig, containsSensitiveWords }
+export { chatConfig, chatReplyProcess, containsSensitiveWords }

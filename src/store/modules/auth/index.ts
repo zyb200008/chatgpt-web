@@ -1,12 +1,11 @@
-import { defineStore } from 'pinia'
-import jwt_decode from 'jwt-decode'
 import type { UserInfo } from '../user/helper'
+import { jwtDecode } from 'jwt-decode'
+import { fetchLogout, fetchSession } from '@/api'
+import { UserConfig } from '@/components/common/Setting/model'
+import { store } from '@/store/helper'
 import { useChatStore } from '../chat'
 import { useUserStore } from '../user'
 import { getToken, removeToken, setToken } from './helper'
-import { store } from '@/store/helper'
-import { fetchLogout, fetchSession } from '@/api'
-import { UserConfig } from '@/components/common/Setting/model'
 
 interface SessionResponse {
   auth: boolean
@@ -26,7 +25,7 @@ interface SessionResponse {
   }[]
   usageCountLimit: boolean
   showWatermark: boolean
-  userInfo: { name: string; description: string; avatar: string; userId: string; root: boolean; config: UserConfig }
+  userInfo: { name: string, description: string, avatar: string, userId: string, root: boolean, config: UserConfig }
 }
 
 export interface AuthState {
@@ -60,7 +59,7 @@ export const useAuthStore = defineStore('auth-store', {
 
     async setToken(token: string) {
       this.token = token
-      const decoded = jwt_decode(token) as UserInfo
+      const decoded = jwtDecode(token) as UserInfo
       const userStore = useUserStore()
       if (decoded.config === undefined || decoded.config === null)
         decoded.config = new UserConfig()

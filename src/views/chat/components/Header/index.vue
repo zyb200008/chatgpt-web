@@ -1,18 +1,19 @@
 <script lang="ts" setup>
-import { computed, nextTick } from 'vue'
 import { HoverButton, SvgIcon } from '@/components/common'
-import { useAppStore, useChatStore } from '@/store'
 import IconPrompt from '@/icons/Prompt.vue'
+import { useAppStore, useChatStore } from '@/store'
 
 interface Props {
   usingContext: boolean
   showPrompt: boolean
+  searchEnabled?: boolean
 }
 
 interface Emit {
   (ev: 'export'): void
   (ev: 'toggleUsingContext'): void
   (ev: 'toggleShowPrompt'): void
+  (ev: 'toggleSearchEnabled'): void
 }
 
 defineProps<Props>()
@@ -43,6 +44,10 @@ function toggleUsingContext() {
   emit('toggleUsingContext')
 }
 
+function toggleSearchEnabled() {
+  emit('toggleSearchEnabled')
+}
+
 function handleShowPrompt() {
   emit('toggleShowPrompt')
 }
@@ -50,7 +55,7 @@ function handleShowPrompt() {
 
 <template>
   <header
-    class="sticky top-0 left-0 right-0 z-30 border-b dark:border-neutral-800 bg-white/80 dark:bg-black/20 backdrop-blur"
+    class="sticky top-0 left-0 right-0 z-30 border-b dark:border-neutral-800 bg-white/80 dark:bg-black/20 backdrop-blur-sm"
   >
     <div class="relative flex items-center justify-between min-w-0 overflow-hidden h-14">
       <div class="flex items-center">
@@ -79,6 +84,12 @@ function handleShowPrompt() {
             <SvgIcon icon="ri:chat-history-line" />
           </span>
           <span style="margin-left:.25em">{{ usingContext ? $t('chat.showOnContext') : $t('chat.showOffContext') }}</span>
+        </HoverButton>
+        <HoverButton :class="{ 'text-[#4b9e5f]': searchEnabled, 'text-[#a8071a]': !searchEnabled }" @click="toggleSearchEnabled">
+          <span class="text-xl">
+            <SvgIcon icon="mdi:web" />
+          </span>
+          <span style="margin-left:.25em">{{ searchEnabled ? $t('chat.searchEnabled') : $t('chat.searchDisabled') }}</span>
         </HoverButton>
         <HoverButton @click="handleExport">
           <span class="text-xl text-[#4f555e] dark:text-white">

@@ -1,8 +1,8 @@
 import type { AxiosProgressEvent, GenericAbortSignal } from 'axios'
-import { get, post } from '@/utils/request'
-import type { AnnounceConfig, AuditConfig, ConfigState, GiftCard, KeyConfig, MailConfig, SiteConfig, Status, UserInfo, UserPassword, UserPrompt } from '@/components/common/Setting/model'
-import { useAuthStore, useUserStore } from '@/store'
+import type { AnnounceConfig, AuditConfig, ConfigState, GiftCard, KeyConfig, MailConfig, SearchConfig, SiteConfig, Status, UserInfo, UserPassword, UserPrompt } from '@/components/common/Setting/model'
 import type { SettingsState } from '@/store/modules/user/helper'
+import { useAuthStore, useUserStore } from '@/store'
+import { get, post } from '@/utils/request'
 
 export function fetchAnnouncement<T = any>() {
   return post<T>({
@@ -23,9 +23,10 @@ export function fetchChatAPIProcess<T = any>(
     regenerate?: boolean
     prompt: string
     uploadFileKeys?: string[]
-    options?: { conversationId?: string; parentMessageId?: string }
+    options?: { conversationId?: string, parentMessageId?: string }
     signal?: GenericAbortSignal
-    onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void },
+    onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void
+  },
 ) {
   const userStore = useUserStore()
   const authStore = useAuthStore()
@@ -271,6 +272,13 @@ export function fetchUpdateChatRoomUsingContext<T = any>(using: boolean, roomId:
   })
 }
 
+export function fetchUpdateChatRoomSearchEnabled<T = any>(searchEnabled: boolean, roomId: number) {
+  return post<T>({
+    url: '/room-search-enabled',
+    data: { searchEnabled, roomId },
+  })
+}
+
 export function fetchDeleteChatRoom<T = any>(roomId: number) {
   return post<T>({
     url: '/room-delete',
@@ -330,6 +338,20 @@ export function fetchTestAudit<T = any>(text: string, audit: AuditConfig) {
   return post<T>({
     url: '/audit-test',
     data: { audit, text },
+  })
+}
+
+export function fetchUpdateSearch<T = any>(search: SearchConfig) {
+  return post<T>({
+    url: '/setting-search',
+    data: search,
+  })
+}
+
+export function fetchTestSearch<T = any>(text: string, search: SearchConfig) {
+  return post<T>({
+    url: '/search-test',
+    data: { search, text },
   })
 }
 

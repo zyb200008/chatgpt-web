@@ -1,12 +1,11 @@
 <script lang="ts" setup>
 import type { DataTableColumns } from 'naive-ui'
-import { h, onMounted, reactive, ref } from 'vue'
-import { NButton, NDataTable, NInput, NModal, NSelect, NSpace, NSwitch, NTag, useDialog, useMessage } from 'naive-ui'
-import { KeyConfig, Status, UserRole, apiModelOptions, userRoleOptions } from './model'
+import { NButton, NTag } from 'naive-ui'
 import { fetchGetKeys, fetchUpdateApiKeyStatus, fetchUpsertApiKey } from '@/api'
+import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
 import { useAuthStore } from '@/store'
-import { useBasicLayout } from '@/hooks/useBasicLayout'
+import { apiModelOptions, KeyConfig, Status, UserRole, userRoleOptions } from './model'
 
 const ms = useMessage()
 const dialog = useDialog()
@@ -244,7 +243,7 @@ onMounted(async () => {
     <div class="p-4 space-y-5 min-h-[200px]">
       <div class="space-y-6">
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.apiModel') }}</span>
+          <span class="shrink-0 w-[100px]">{{ $t('setting.apiModel') }}</span>
           <div class="flex-1">
             <NSelect
               style="width: 100%"
@@ -259,7 +258,7 @@ onMounted(async () => {
           </p>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.api') }}</span>
+          <span class="shrink-0 w-[100px]">{{ $t('setting.api') }}</span>
           <div class="flex-1">
             <NInput
               v-model:value="keyConfig.key" type="textarea"
@@ -268,7 +267,7 @@ onMounted(async () => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.apiBaseUrl') }}</span>
+          <span class="shrink-0 w-[100px]">{{ $t('setting.apiBaseUrl') }}</span>
           <div class="flex-1">
             <NInput
               v-model:value="keyConfig.baseUrl"
@@ -277,7 +276,7 @@ onMounted(async () => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.chatModels') }}</span>
+          <span class="shrink-0 w-[100px]">{{ $t('setting.chatModels') }}</span>
           <div class="flex-1">
             <NSelect
               style="width: 100%"
@@ -289,7 +288,7 @@ onMounted(async () => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.userRoles') }}</span>
+          <span class="shrink-0 w-[100px]">{{ $t('setting.userRoles') }}</span>
           <div class="flex-1">
             <NSelect
               style="width: 100%"
@@ -301,7 +300,7 @@ onMounted(async () => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.status') }}</span>
+          <span class="shrink-0 w-[100px]">{{ $t('setting.status') }}</span>
           <div class="flex-1">
             <NSwitch
               :round="false"
@@ -311,7 +310,7 @@ onMounted(async () => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.remark') }}</span>
+          <span class="shrink-0 w-[100px]">{{ $t('setting.remark') }}</span>
           <div class="flex-1">
             <NInput
               v-model:value="keyConfig.remark" type="textarea"
@@ -320,7 +319,7 @@ onMounted(async () => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]" />
+          <span class="shrink-0 w-[100px]" />
           <NButton type="primary" :loading="handleSaving" @click="handleUpdateKeyConfig()">
             {{ $t('common.save') }}
           </NButton>

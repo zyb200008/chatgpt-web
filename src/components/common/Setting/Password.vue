@@ -1,9 +1,7 @@
 <script setup lang='ts'>
-import { onMounted, ref } from 'vue'
-import { NButton, NInput, NSpin, useMessage } from 'naive-ui'
-import { UserPassword } from './model'
 import { fetchUpdateUserPassword } from '@/api'
 import { t } from '@/locales'
+import { UserPassword } from './model'
 
 const ms = useMessage()
 
@@ -40,7 +38,7 @@ onMounted(() => {
     <div class="p-4 space-y-5 min-h-[200px]">
       <div class="space-y-6">
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.oldPassword') }}</span>
+          <span class="shrink-0 w-[100px]">{{ $t('setting.oldPassword') }}</span>
           <div class="w-[200px]">
             <NInput
               type="password"
@@ -51,7 +49,7 @@ onMounted(() => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.newPassword') }}</span>
+          <span class="shrink-0 w-[100px]">{{ $t('setting.newPassword') }}</span>
           <div class="w-[200px]">
             <NInput
               type="password"
@@ -62,7 +60,7 @@ onMounted(() => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.confirmNewPassword') }}</span>
+          <span class="shrink-0 w-[100px]">{{ $t('setting.confirmNewPassword') }}</span>
           <div class="w-[200px]">
             <NInput
               type="password"
@@ -74,7 +72,7 @@ onMounted(() => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]" />
+          <span class="shrink-0 w-[100px]" />
           <div class="flex flex-wrap items-center gap-4">
             <NButton
               :loading="saving" type="primary" :disabled="!config || !config.newPassword || !config.confirmPassword || !config.oldPassword || config.confirmPassword !== config.newPassword || config.newPassword.length < 6"

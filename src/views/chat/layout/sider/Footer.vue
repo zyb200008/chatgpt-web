@@ -22,7 +22,7 @@ function goToFormulaExamples() {
 
 <template>
   <footer class="flex items-center justify-between min-w-0 p-2 pl-4 overflow-hidden border-t dark:border-neutral-800">
-    <div class="flex-1 flex-shrink-0 overflow-hidden">
+    <div class="flex-1 shrink-0 overflow-hidden">
       <UserAvatar />
     </div>
     <HoverButton tooltip="LaTeX公式示例" @click="goToFormulaExamples">
