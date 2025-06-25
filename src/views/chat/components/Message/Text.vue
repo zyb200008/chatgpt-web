@@ -1,9 +1,10 @@
 <script lang="ts" setup>
-import { computed, onMounted, onUnmounted, onUpdated, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, onUpdated, ref } from 'vue'
 import MarkdownIt from 'markdown-it'
 import mdKatex from '@vscode/markdown-it-katex'
 import mila from 'markdown-it-link-attributes'
 import hljs from 'highlight.js/lib/common'
+import mermaid from 'mermaid'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
 import { copyToClip } from '@/utils/copy'
@@ -11,6 +12,28 @@ import { convertTexDisplayStyle, processChemicalFormula, processComplexFormula, 
 
 // 确保mhchem扩展已加载
 import 'katex/dist/contrib/mhchem.min.js'
+
+const props = defineProps<Props>()
+
+// 初始化 Mermaid
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'default',
+  securityLevel: 'loose',
+  fontFamily: 'monospace',
+  flowchart: {
+    useMaxWidth: true,
+    htmlLabels: true,
+    curve: 'basis',
+  },
+  sequence: {
+    useMaxWidth: true,
+    wrap: true,
+  },
+  gantt: {
+    useMaxWidth: true,
+  },
+})
 
 interface Props {
   inversion?: boolean
@@ -20,8 +43,6 @@ interface Props {
   loading?: boolean
   asRawText?: boolean
 }
-
-const props = defineProps<Props>()
 
 const { isMobile } = useBasicLayout()
 
@@ -71,6 +92,11 @@ const mdi = new MarkdownIt({
   linkify: true,
   highlight(code, language) {
     const validLang = !!(language && hljs.getLanguage(language))
+
+    // 处理 Mermaid 图表
+    if (language === 'mermaid')
+      return renderMermaidBlock(code)
+
     if (validLang) {
       const lang = language ?? ''
       return highlightBlock(hljs.highlight(code, { language: lang }).value, lang)
@@ -210,6 +236,48 @@ function preProcessChemicalFormula(content: string) {
   return content
 }
 
+// Mermaid 图表渲染计数器，确保每个图表有唯一ID
+let mermaidIdCounter = 0
+
+// 渲染 Mermaid 代码块
+function renderMermaidBlock(code: string) {
+  const id = `mermaid-${Date.now()}-${++mermaidIdCounter}`
+  return `<div class="mermaid-wrapper"><div class="mermaid-container" id="${id}">${code}</div></div>`
+}
+
+// 渲染所有 Mermaid 图表
+async function renderMermaidCharts() {
+  if (!textRef.value)
+    return
+
+  const mermaidElements = textRef.value.querySelectorAll('.mermaid-container')
+
+  for (const element of mermaidElements) {
+    if (element.getAttribute('data-processed') === 'true')
+      continue
+
+    const code = element.textContent || ''
+    const id = element.id
+
+    try {
+      // 验证 Mermaid 语法
+      const result = await mermaid.parse(code)
+      if (result) {
+        // 渲染图表
+        const { svg } = await mermaid.render(`${id}-svg`, code)
+        element.innerHTML = svg
+        element.setAttribute('data-processed', 'true')
+      }
+    }
+    catch (error) {
+      console.warn('Mermaid parsing error:', error)
+      // 如果解析失败，显示原始代码
+      element.innerHTML = `<pre class="mermaid-error"><code>${code}</code></pre>`
+      element.setAttribute('data-processed', 'true')
+    }
+  }
+}
+
 function highlightBlock(str: string, lang?: string) {
   return `<pre class="code-block-wrapper"><div class="code-block-header"><span class="code-block-header__lang">${lang}</span><span class="code-block-header__copy">${t('chat.copyCode')}</span></div><code class="hljs code-block-body ${lang}">${str}</code></pre>`
 }
@@ -244,10 +312,16 @@ function removeCopyEvents() {
 
 onMounted(() => {
   addCopyEvents()
+  nextTick(() => {
+    renderMermaidCharts()
+  })
 })
 
 onUpdated(() => {
   addCopyEvents()
+  nextTick(() => {
+    renderMermaidCharts()
+  })
 })
 
 onUnmounted(() => {

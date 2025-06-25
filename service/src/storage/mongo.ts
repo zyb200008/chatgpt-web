@@ -386,6 +386,37 @@ export async function updateUserChatModel(userId: string, chatModel: string) {
     , { $set: { 'config.chatModel': chatModel } })
 }
 
+// 批量更新所有用户的默认模型
+export async function updateAllUsersChatModel(chatModel: string) {
+  const result = await userCol.updateMany(
+    { status: { $ne: Status.Deleted } },
+    { $set: { 'config.chatModel': chatModel } },
+  )
+  return result.modifiedCount
+}
+
+// 批量更新指定用户的模型
+export async function updateMultipleUsersChatModel(userIds: string[], chatModel: string) {
+  const objectIds = userIds.map(id => new ObjectId(id))
+  const result = await userCol.updateMany(
+    { _id: { $in: objectIds }, status: { $ne: Status.Deleted } },
+    { $set: { 'config.chatModel': chatModel } },
+  )
+  return result.modifiedCount
+}
+
+// 根据用户角色批量更新模型
+export async function updateUsersChatModelByRole(roles: UserRole[], chatModel: string) {
+  const result = await userCol.updateMany(
+    {
+      status: { $ne: Status.Deleted },
+      roles: { $in: roles },
+    },
+    { $set: { 'config.chatModel': chatModel } },
+  )
+  return result.modifiedCount
+}
+
 export async function updateUserAdvancedConfig(userId: string, config: AdvancedConfig) {
   await userCol.updateOne({ _id: new ObjectId(userId) }
     , { $set: { advanced: config } })

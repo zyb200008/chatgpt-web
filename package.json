@@ -23,6 +23,9 @@
     "common:cleanup": "rimraf node_modules && rimraf pnpm-lock.yaml",
     "common:prepare": "husky install"
   },
+  "dependencies": {
+    "mermaid": "^11.7.0"
+  },
   "devDependencies": {
     "@antfu/eslint-config": "^0.43.1",
     "@commitlint/cli": "^17.4.4",

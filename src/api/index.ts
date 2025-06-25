@@ -167,6 +167,30 @@ export function fetchUpdateUserChatModel<T = any>(chatModel: string) {
   })
 }
 
+// 批量更新所有用户的默认模型
+export function fetchUpdateAllUsersChatModel<T = any>(chatModel: string) {
+  return post<T>({
+    url: '/admin/users-chat-model-all',
+    data: { chatModel },
+  })
+}
+
+// 批量更新指定用户的模型
+export function fetchUpdateMultipleUsersChatModel<T = any>(userIds: string[], chatModel: string) {
+  return post<T>({
+    url: '/admin/users-chat-model-multiple',
+    data: { userIds, chatModel },
+  })
+}
+
+// 根据用户角色批量更新模型
+export function fetchUpdateUsersChatModelByRole<T = any>(roles: number[], chatModel: string) {
+  return post<T>({
+    url: '/admin/users-chat-model-by-role',
+    data: { roles, chatModel },
+  })
+}
+
 export function fetchGetUsers<T = any>(page: number, size: number) {
   return get<T>({
     url: '/users',

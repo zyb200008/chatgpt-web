@@ -3,7 +3,7 @@ import type { DataTableColumns } from 'naive-ui'
 import { h, onMounted, reactive, ref } from 'vue'
 import { NButton, NDataTable, NInput, NInputNumber, NModal, NSelect, NSpace, NSwitch, NTag, useDialog, useMessage } from 'naive-ui'
 import { Status, UserInfo, UserRole, userRoleOptions } from './model'
-import { fetchDisableUser2FAByAdmin, fetchGetUsers, fetchUpdateUser, fetchUpdateUserStatus } from '@/api'
+import { fetchDisableUser2FAByAdmin, fetchGetUsers, fetchUpdateAllUsersChatModel, fetchUpdateMultipleUsersChatModel, fetchUpdateUser, fetchUpdateUserStatus, fetchUpdateUsersChatModelByRole } from '@/api'
 import { t } from '@/locales'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 
@@ -14,6 +14,24 @@ const loading = ref(false)
 const show = ref(false)
 const handleSaving = ref(false)
 const userRef = ref(new UserInfo([UserRole.User]))
+
+// 批量模型管理相关状态
+const showBatchModelModal = ref(false)
+const batchModelSaving = ref(false)
+const selectedUserIds = ref<string[]>([])
+const batchChatModel = ref('gpt-4.1-nano')
+const batchOperationType = ref<'all' | 'selected' | 'role'>('all')
+const selectedRoles = ref<UserRole[]>([])
+
+// 可用的模型选项
+const chatModelOptions = [
+  { label: 'GPT-4.1 Nano', value: 'gpt-4.1-nano' },
+  { label: 'GPT-4.1', value: 'gpt-4.1' },
+  { label: 'GPT-4', value: 'gpt-4' },
+  { label: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' },
+  { label: 'GPT-4o', value: 'gpt-4o' },
+  { label: 'GPT-4o Mini', value: 'gpt-4o-mini' },
+]
 
 const users = ref([])
 
@@ -105,6 +123,18 @@ function createColumns(): DataTableColumns {
       width: 80,
       minWidth: 30,
       maxWidth: 100,
+    },
+    // 添加模型列
+    {
+      title: 'Chat Model',
+      key: 'config.chatModel',
+      resizable: true,
+      width: 150,
+      minWidth: 100,
+      maxWidth: 200,
+      render(row: any) {
+        return row.config?.chatModel || 'gpt-4.1-nano'
+      },
     },
     {
       title: 'Action',
@@ -248,6 +278,13 @@ function handleNewUser() {
 
 function handleEditUser(user: UserInfo) {
   userRef.value = user
+  // 确保config对象存在
+  if (!userRef.value.config)
+    userRef.value.config = { chatModel: 'gpt-4.1-nano' }
+
+  if (!userRef.value.config.chatModel)
+    userRef.value.config.chatModel = 'gpt-4.1-nano'
+
   show.value = true
 }
 
@@ -264,6 +301,56 @@ async function handleUpdateUser() {
   handleSaving.value = false
 }
 
+// 批量模型管理功能
+function handleBatchModelManagement() {
+  selectedUserIds.value = []
+  batchChatModel.value = 'gpt-4.1-nano'
+  batchOperationType.value = 'all'
+  selectedRoles.value = []
+  showBatchModelModal.value = true
+}
+
+async function handleBatchUpdateChatModel() {
+  if (!batchChatModel.value) {
+    ms.error('请选择模型 | Please select a model')
+    return
+  }
+
+  batchModelSaving.value = true
+  try {
+    let result
+    if (batchOperationType.value === 'all') {
+      result = await fetchUpdateAllUsersChatModel(batchChatModel.value)
+    }
+    else if (batchOperationType.value === 'selected') {
+      if (selectedUserIds.value.length === 0) {
+        ms.error('请选择要更新的用户 | Please select users to update')
+        return
+      }
+      result = await fetchUpdateMultipleUsersChatModel(selectedUserIds.value, batchChatModel.value)
+    }
+    else if (batchOperationType.value === 'role') {
+      if (selectedRoles.value.length === 0) {
+        ms.error('请选择用户角色 | Please select user roles')
+        return
+      }
+      result = await fetchUpdateUsersChatModelByRole(selectedRoles.value, batchChatModel.value)
+    }
+
+    ms.success(result.message as string)
+    showBatchModelModal.value = false
+    await handleGetUsers(pagination.page)
+  }
+  catch (error: any) {
+    ms.error(error.message)
+  }
+  batchModelSaving.value = false
+}
+
+function handleUserSelection(rowKeys: string[]) {
+  selectedUserIds.value = rowKeys
+}
+
 onMounted(async () => {
   await handleGetUsers(pagination.page)
 })
@@ -277,6 +364,9 @@ onMounted(async () => {
           <NButton @click="handleNewUser()">
             New User
           </NButton>
+          <NButton type="primary" @click="handleBatchModelManagement()">
+            批量模型管理 | Batch Model Management
+          </NButton>
         </NSpace>
         <NDataTable
           remote
@@ -288,6 +378,9 @@ onMounted(async () => {
           :max-height="444"
           striped
           :scroll-x="1800"
+          checkable
+          :checked-row-keys="selectedUserIds"
+          @update:checked-row-keys="handleUserSelection"
           @update:page="handleGetUsers"
         />
       </NSpace>
@@ -348,6 +441,16 @@ onMounted(async () => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
+          <span class="flex-shrink-0 w-[100px]">Chat Model</span>
+          <div class="flex-1">
+            <NSelect
+              v-model:value="userRef.config.chatModel"
+              :options="chatModelOptions"
+              placeholder="选择聊天模型 | Select chat model"
+            />
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
           <span class="flex-shrink-0 w-[100px]">{{ $t('setting.limit_switch') }}</span>
           <div class="flex-1">
             <NSwitch
@@ -360,6 +463,66 @@ onMounted(async () => {
         <div class="flex items-center space-x-4">
           <span class="flex-shrink-0 w-[100px]" />
           <NButton type="primary" :loading="handleSaving" @click="handleUpdateUser()">
+            {{ $t('common.save') }}
+          </NButton>
+        </div>
+      </div>
+    </div>
+  </NModal>
+
+  <!-- 批量模型管理模态框 -->
+  <NModal v-model:show="showBatchModelModal" :auto-focus="false" preset="card" title="批量模型管理 | Batch Model Management" :style="{ width: !isMobile ? '50%' : '100%' }">
+    <div class="p-4 space-y-5 min-h-[300px]">
+      <div class="space-y-6">
+        <div class="flex items-center space-x-4">
+          <span class="flex-shrink-0 w-[100px]">操作类型</span>
+          <div class="flex-1">
+            <NSelect
+              v-model:value="batchOperationType"
+              :options="[
+                { label: '所有用户 | All Users', value: 'all' },
+                { label: '选中用户 | Selected Users', value: 'selected' },
+                { label: '按角色 | By Role', value: 'role' },
+              ]"
+            />
+          </div>
+        </div>
+
+        <div v-if="batchOperationType === 'selected'" class="flex items-center space-x-4">
+          <span class="flex-shrink-0 w-[100px]">选中用户</span>
+          <div class="flex-1">
+            <span class="text-sm text-gray-600">
+              已选择 {{ selectedUserIds.length }} 个用户 | {{ selectedUserIds.length }} users selected
+            </span>
+          </div>
+        </div>
+
+        <div v-if="batchOperationType === 'role'" class="flex items-center space-x-4">
+          <span class="flex-shrink-0 w-[100px]">用户角色</span>
+          <div class="flex-1">
+            <NSelect
+              v-model:value="selectedRoles"
+              multiple
+              :options="userRoleOptions"
+              placeholder="请选择用户角色 | Select user roles"
+            />
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+          <span class="flex-shrink-0 w-[100px]">目标模型</span>
+          <div class="flex-1">
+            <NSelect
+              v-model:value="batchChatModel"
+              :options="chatModelOptions"
+              placeholder="请选择模型 | Select model"
+            />
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+          <span class="flex-shrink-0 w-[100px]" />
+          <NButton type="primary" :loading="batchModelSaving" @click="handleBatchUpdateChatModel()">
             {{ $t('common.save') }}
           </NButton>
         </div>

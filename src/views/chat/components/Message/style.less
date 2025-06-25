@@ -201,3 +201,87 @@ html.dark {
 		max-width: 100%;
 	}
 }
+
+// Mermaid 图表样式
+.mermaid-wrapper {
+	margin: 1em 0;
+	padding: 1em;
+	border: 1px solid #e1e5e9;
+	border-radius: 8px;
+	background-color: #ffffff;
+	text-align: center;
+	overflow-x: auto;
+	overflow-y: hidden;
+
+	.mermaid-container {
+		min-height: 200px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+
+		svg {
+			max-width: 100%;
+			height: auto;
+			vertical-align: middle;
+		}
+	}
+
+	// Mermaid 错误显示样式
+	.mermaid-error {
+		background-color: #fff2f0;
+		border: 1px solid #ffccc7;
+		border-radius: 4px;
+		padding: 8px 12px;
+		font-family: 'Courier New', Courier, monospace;
+		font-size: 12px;
+		color: #a8071a;
+		white-space: pre-wrap;
+		text-align: left;
+		
+		&:before {
+			content: '⚠️ Mermaid 渲染错误：\A';
+			font-weight: bold;
+			color: #cf1322;
+		}
+	}
+}
+
+// 暗色模式下的 Mermaid 样式
+html.dark {
+	.mermaid-wrapper {
+		border-color: #434343;
+		background-color: #1e1e1e;
+
+		.mermaid-error {
+			background-color: #2a1f1f;
+			border-color: #6a4d4d;
+			color: #ff7875;
+			
+			&:before {
+				color: #ff4d4f;
+			}
+		}
+	}
+}
+
+// 移动设备上的 Mermaid 适配
+@media screen and (max-width: 533px) {
+	.mermaid-wrapper {
+		margin: 0.5em 0;
+		padding: 0.5em;
+		border-radius: 6px;
+
+		.mermaid-container {
+			min-height: 150px;
+
+			svg {
+				font-size: 12px;
+			}
+		}
+
+		.mermaid-error {
+			font-size: 11px;
+			padding: 6px 8px;
+		}
+	}
+}

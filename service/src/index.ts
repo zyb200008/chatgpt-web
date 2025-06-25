@@ -25,10 +25,12 @@ import {
   getUserStatisticsByDay,
   getUsers,
   renameChatRoom,
+  updateAllUsersChatModel,
   updateApiKeyStatus,
   updateConfig,
   updateGiftCard,
   updateGiftCards,
+  updateMultipleUsersChatModel,
   updateRoomChatModel,
   updateRoomPrompt,
   updateRoomUsingContext,
@@ -41,6 +43,7 @@ import {
   updateUserPassword,
   updateUserPasswordWithVerifyOld,
   updateUserStatus,
+  updateUsersChatModelByRole,
   upsertKey,
   verifyUser,
 } from './storage/mongo'
@@ -616,6 +619,69 @@ router.post('/user-chat-model', auth, async (req, res) => {
       throw new Error('用户不存在 | User does not exist.')
     await updateUserChatModel(userId, chatModel)
     res.send({ status: 'Success', message: '更新成功 | Update successfully' })
+  }
+  catch (error) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
+// 批量更新所有用户的默认模型
+router.post('/admin/users-chat-model-all', rootAuth, async (req, res) => {
+  try {
+    const { chatModel } = req.body as { chatModel: string }
+    if (!chatModel || chatModel.trim() === '')
+      throw new Error('模型名称不能为空 | Model name cannot be empty')
+
+    const modifiedCount = await updateAllUsersChatModel(chatModel)
+    res.send({
+      status: 'Success',
+      message: `成功更新${modifiedCount}个用户的默认模型 | Successfully updated default model for ${modifiedCount} users`,
+      data: { modifiedCount },
+    })
+  }
+  catch (error) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
+// 批量更新指定用户的模型
+router.post('/admin/users-chat-model-multiple', rootAuth, async (req, res) => {
+  try {
+    const { userIds, chatModel } = req.body as { userIds: string[]; chatModel: string }
+    if (!chatModel || chatModel.trim() === '')
+      throw new Error('模型名称不能为空 | Model name cannot be empty')
+
+    if (!userIds || userIds.length === 0)
+      throw new Error('用户ID列表不能为空 | User ID list cannot be empty')
+
+    const modifiedCount = await updateMultipleUsersChatModel(userIds, chatModel)
+    res.send({
+      status: 'Success',
+      message: `成功更新${modifiedCount}个用户的模型 | Successfully updated model for ${modifiedCount} users`,
+      data: { modifiedCount },
+    })
+  }
+  catch (error) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
+// 根据用户角色批量更新模型
+router.post('/admin/users-chat-model-by-role', rootAuth, async (req, res) => {
+  try {
+    const { roles, chatModel } = req.body as { roles: UserRole[]; chatModel: string }
+    if (!chatModel || chatModel.trim() === '')
+      throw new Error('模型名称不能为空 | Model name cannot be empty')
+
+    if (!roles || roles.length === 0)
+      throw new Error('用户角色不能为空 | User roles cannot be empty')
+
+    const modifiedCount = await updateUsersChatModelByRole(roles, chatModel)
+    res.send({
+      status: 'Success',
+      message: `成功更新${modifiedCount}个用户的模型 | Successfully updated model for ${modifiedCount} users`,
+      data: { modifiedCount },
+    })
   }
   catch (error) {
     res.send({ status: 'Fail', message: error.message, data: null })

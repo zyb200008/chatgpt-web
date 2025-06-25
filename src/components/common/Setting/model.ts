@@ -18,6 +18,9 @@ export class ConfigState {
 
 export class UserConfig {
   chatModel?: string
+  constructor() {
+    this.chatModel = 'gpt-4.1-nano'
+  }
 }
 
 // https://platform.openai.com/docs/models/overview
@@ -149,8 +152,10 @@ export class UserInfo {
   useAmount?: number
   // 配合改造，增加额度信息 and it's switch
   limit_switch?: boolean
+  config?: UserConfig
   constructor(roles: UserRole[]) {
     this.roles = roles
+    this.config = new UserConfig()
   }
 }
 

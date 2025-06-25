@@ -133,7 +133,6 @@ async function copyFormula() {
   catch (err) {
     copyStatus.value = 'error'
     console.error('无法复制文本:', err)
-    alert('复制失败，请手动复制公式')
   }
 }
 
